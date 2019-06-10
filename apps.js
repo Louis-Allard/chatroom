@@ -1,25 +1,26 @@
-const http = require('http');
-const fs = require('fs');
-
-const server = http.createServer(function (req, res) {
-    fs.readFile('./index.html', 'utf-8', function (error, content) {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(content);
-    });
-});
+const app = require('express')();
+const server = require('http').createServer(app);
 const io = require('socket.io').listen(server);
+const ent = require('ent'); // Permet de bloquer les caractères HTML (sécurité équivalente à htmlentities en PHP)
+
+
+app.get('/', function (req, res) {
+    res.sendfile(__dirname + '/index.html');
+});
 
 io.sockets.on('connection', function (socket, pseudo) {
-
-    socket.emit('message', 'Vous êtes bien connecté !');
-    socket.broadcast.emit('message', 'Un autre client vient de se connecter ! ');
-    socket.on('petit_nouveau', function(pseudo) {
+    // Dès qu'on nous donne un pseudo, on le stocke en variable de session et on informe les autres personnes
+    socket.on('nouveau_client', function (pseudo) {
+        pseudo = ent.encode(pseudo);
         socket.pseudo = pseudo;
+        socket.broadcast.emit('nouveau_client', pseudo);
     });
-    socket.on('message', function (message) {
-        console.log(socket.pseudo + ' me parle ! Il me dit : ' + message);
-    }); 
-});
 
+    // Dès qu'on reçoit un message, on récupère le pseudo de son auteur et on le transmet aux autres personnes
+    socket.on('message', function (message) {
+        message = ent.encode(message);
+        socket.broadcast.emit('message', { pseudo: socket.pseudo, message: message });
+    });
+});
 
 server.listen(8080);
